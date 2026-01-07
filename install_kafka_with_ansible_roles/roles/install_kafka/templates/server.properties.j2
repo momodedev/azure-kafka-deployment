@@ -1,48 +1,48 @@
-############################# Server Basics #############################
+############################# KRaft Node Basics #############################
 
-broker.id={{ kafka_broker_id }}
+process.roles=broker,controller
+node.id={{ kafka_node_id }}
+controller.listener.names=CONTROLLER
 
 
-############################# Socket Server Settings #############################
+############################# Listener Configuration #############################
 
-listeners=CLIENT_listener://{{ private_ip }}:9092, BROKER_listener://{{ private_ip }}:9093
-advertised.listeners=CLIENT_listener://{{ private_ip }}:9092, BROKER_listener://{{ private_ip }}:9093
-listener.security.protocol.map=CLIENT_listener:PLAINTEXT,BROKER_listener:PLAINTEXT
-inter.broker.listener.name=BROKER_listener
+listeners=CONTROLLER://0.0.0.0:{{ kafka_controller_port }},INTERNAL://0.0.0.0:{{ kafka_client_port }},EXTERNAL://0.0.0.0:{{ kafka_external_port }}
+advertised.listeners=INTERNAL://{{ private_ip | default(ansible_default_ipv4.address) }}:{{ kafka_client_port }},EXTERNAL://{{ private_ip | default(ansible_default_ipv4.address) }}:{{ kafka_external_port }}
+listener.security.protocol.map=CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+inter.broker.listener.name=INTERNAL
+
+controller.quorum.voters={% for host in groups['kafka'] | sort %}{{ groups['kafka'].index(host) + 1 }}@{{ hostvars[host]['private_ip'] | default(hostvars[host]['ansible_default_ipv4']['address']) }}:{{ kafka_controller_port }}{% if not loop.last %},{% endif %}{% endfor %}
+
+
+############################# General Broker Settings #############################
+
 num.network.threads=8
 num.io.threads=8
 socket.send.buffer.bytes=102400
 socket.receive.buffer.bytes=102400
 socket.request.max.bytes=104857600
-
-
-############################# Log Basics #############################
-
-log.dirs={{kafka_log_dir}}
+log.dirs={{ kafka_log_dir }}
 num.partitions=2
-num.recovery.threads.per.data.dir=1
+num.recovery.threads.per.data.dir=4
+auto.create.topics.enable=false
 
 
-############################# Internal Topic Settings  #############################
+############################# Replication Settings #############################
 
-offsets.topic.replication.factor=2
-transaction.state.log.replication.factor=2
-transaction.state.log.min.isr=1
-
-
-############################# Log Retention Policy #############################
-
-log.retention.hours=24
-log.retention.check.interval.ms=3600000
+default.replication.factor={{ [groups['kafka'] | length, 3] | min }}
+offsets.topic.replication.factor={{ [groups['kafka'] | length, 3] | min }}
+transaction.state.log.replication.factor={{ [groups['kafka'] | length, 3] | min }}
+transaction.state.log.min.isr={{ [([groups['kafka'] | length, 3] | min) - 1, 1] | max }}
+min.insync.replicas={{ [([groups['kafka'] | length, 3] | min) - 1, 1] | max }}
 
 
-############################# Zookeeper #############################
+############################# Log Retention #############################
 
-zookeeper.connect={{ groups.zookeeper | map('extract', hostvars) | map(attribute='private_ip') | zip_longest([zookeeper_port], fillvalue=zookeeper_port) | map('join', ':') | join(',') }}
+log.retention.hours=168
+log.retention.check.interval.ms=300000
 
 
-zookeeper.connection.timeout.ms=18000
+############################# Group Coordinator #############################
 
-############################# Group Coordinator Settings #############################
-
-group.initial.rebalance.delay.ms=1000
+group.initial.rebalance.delay.ms=0

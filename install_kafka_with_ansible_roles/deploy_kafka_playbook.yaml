@@ -1,83 +1,54 @@
 ---
-- name: 
+- name: Wait for SSH
   hosts: all
-  gather_facts: False
+  gather_facts: false
   tasks:
-    - name: ensure VM is UP
+    - name: Ensure VM is reachable over SSH
       wait_for:
         port: 22
-        host: '{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}'
+        host: "{{ (ansible_ssh_host | default(ansible_host)) | default(inventory_hostname) }}"
         search_regex: OpenSSH
         delay: 10
-        timeout: 100
+        timeout: 120
       vars:
         ansible_connection: local
 
-- name: Setup envirenment and install kafka
-  hosts: all
-  become: True
+- name: Prepare broker environment
+  hosts: kafka
+  become: true
   vars_files:
-  - vars
+    - vars
   roles:
     - setup_envirenment
 
-
-
-- name: Install zookeeper
-  hosts: zookeeper
-  become: True
-  vars:
-    service_name: zookeeper
-    log_dir: "{{zookeeper_data_dir}}"
-    server_port: "{{zookeeper_port}}"
-  vars_files:
-  - vars
-  pre_tasks:
-    - name: Create ZooKeeper data directory
-      file:
-       path: "{{ zookeeper_data_dir }}"
-       state: directory
-       mode: 0755
-       recurse: yes
-       owner: kafka
-       group: kafka
-    
-    - name: Create services log directory
-      file:
-       path: "{{ services_logs_dir }}"
-       state: directory
-       mode: 0755
-       recurse: yes
-       owner: kafka
-       group: kafka
-
-    - name: Set incremental ID for Kafka group
-      set_fact:
-        kafka_broker_id: "{{ groups['kafka'].index(inventory_hostname) + 1 }}"
-
-    - name: Create ZooKeeper myid file with unique incremental values
-      copy:
-        content: "{{ kafka_broker_id }}"
-        dest: "{{zookeeper_data_dir}}/myid"
-
-  roles:
-    - install_kafka
-
-
-- name: Install Kafka Broker
+- name: Configure KRaft Kafka brokers
   hosts: kafka
-  become: True
-  vars:
-    service_name: kafka
-    config_file_name: server
-    server_port: 9092
+  become: true
   vars_files:
-  - vars
+    - vars
   pre_tasks:
-    - name: Set incremental ID for Kafka group
+    - name: Assign deterministic node id
       set_fact:
-        kafka_broker_id: "{{ groups['kafka'].index(inventory_hostname) + 1 }}"
+        kafka_node_id: "{{ groups['kafka'].index(inventory_hostname) + 1 }}"
   roles:
     - install_kafka
 
+- name: Generate Prometheus targets for Kafka exporters
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - vars
+  tasks:
+    - name: Ensure Prometheus target directory exists
+      file:
+        path: "{{ prometheus_sd_output_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render Kafka scrape target file
+      template:
+        src: templates/prometheus_kafka_targets.json.j2
+        dest: "{{ prometheus_sd_output_path }}"
+        mode: "0644"
 

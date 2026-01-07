@@ -1,40 +1,32 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-myvar=$(az vmss list-instance-public-ips --resource-group test_kafka --name kafka-vmss)
-public_dns_names=$(echo $myvar | jq -r '.[].dnsSettings.fqdn')
+set -euo pipefail
 
-private_var=$(az vmss nic list -g test_kafka --vmss-name kafka-vmss)
-private_ips=$(echo $private_var | jq -r '.[].ipConfigurations[0].privateIPAddress')
-counter=0
-private_ip_list=($private_ips)
-public_dns_list=($public_dns_names)
-list_length=${#private_ip_list[@]}
+if [[ $# -lt 3 ]]; then
+    echo "Usage: $0 <resource-group> <vmss-name> <admin-username>" >&2
+    exit 1
+fi
+
+resource_group="$1"
+vmss_name="$2"
+admin_user="$3"
+
+vmss_nics=$(az vmss nic list -g "$resource_group" --vmss-name "$vmss_name")
+
+mapfile -t private_ips < <(echo "$vmss_nics" | jq -r 'sort_by(.virtualMachine.id) | map(.ipConfigurations[0].privateIPAddress) | .[]')
 
 echo "[kafka]"
-for ((i = 0; i < ${#private_ip_list[@]}; i++))
-do
-public_dns="${public_dns_list[i]}"
-private_ip="${private_ip_list[i]}"
-if [[ "$public_dns" == *"kafka"* ]]; then
-    ((counter++))
-    echo "$public_dns private_ip=$private_ip"
-fi
-done
-
-
-echo "[zookeeper]"
-for ((i = 0; i < ${#private_ip_list[@]}; i++))
-do
-public_dns="${public_dns_list[i]}"
-private_ip="${private_ip_list[i]}"
-if [[ "$public_dns" == *"zookeeper"* ]]; then
-    ((counter++))
-    echo "$public_dns private_ip=$private_ip"
-fi
+index=1
+for ip in "${private_ips[@]}"; do
+    printf 'kafka-broker-%02d ansible_host=%s private_ip=%s kafka_node_id=%d\n' "$index" "$ip" "$ip" "$index"
+    index=$((index + 1))
 done
 
 echo "[all:vars]"
+echo "ansible_user=$admin_user"
 echo "ansible_ssh_private_key_file=~/.ssh/id_rsa"
-echo "ansible_user=azureuser"
 echo "ansible_python_interpreter=/usr/bin/python3"
+
+
+
 

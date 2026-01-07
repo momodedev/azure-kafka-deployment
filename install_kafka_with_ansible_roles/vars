@@ -1,8 +1,13 @@
 kafka_home: /opt
-kafka_workspace: "{{kafka_home}}/kafka"
-kafka_log_dir: "{{kafka_workspace}}/kafka-logs"
-zookeeper_data_dir: "{{kafka_workspace}}/zookeeper"
-zookeeper_log_dir: "{{kafka_workspace}}/zookeeper-logs"
-services_logs_dir: "{{kafka_workspace}}/services-logs"
-zookeeper_port: 2181
-kafka_heap_size: -Xmx512M -Xms512M
+kafka_workspace: "{{ kafka_home }}/kafka"
+kafka_data_dir: "{{ kafka_workspace }}/data"
+kafka_log_dir: "{{ kafka_data_dir }}"
+services_logs_dir: "{{ kafka_workspace }}/services-logs"
+kafka_heap_size: -Xmx2G -Xms2G
+kafka_client_port: 9092
+kafka_controller_port: 9093
+kafka_external_port: 9094
+kafka_exporter_port: 9308
+kafka_exporter_version: "1.7.0"
+kafka_exporter_download_url: "https://github.com/danielqsj/kafka_exporter/releases/download/v{{ kafka_exporter_version }}/kafka_exporter-{{ kafka_exporter_version }}.linux-amd64.tar.gz"
+prometheus_sd_output_path: "generated/prometheus/kafka_targets.json"

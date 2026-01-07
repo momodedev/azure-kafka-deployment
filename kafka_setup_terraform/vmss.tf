@@ -3,74 +3,81 @@
 ###################### VMSS #####################
 
 
-resource "azurerm_linux_virtual_machine_scale_set" "example" {
-  name                = "kafka-vmss"
+resource "azurerm_linux_virtual_machine_scale_set" "brokers" {
+  name                = var.kafka_vmss_name
   location            = azurerm_resource_group.example.location
   resource_group_name = azurerm_resource_group.example.name
-  sku                 = "Standard_B1s"
-  instances           = 2
-  admin_username      = "azureuser"
+  sku                 = var.kafka_vm_size
+  instances           = var.kafka_instance_count
   upgrade_mode        = "Manual"
-  computer_name_prefix = "ramzi"
+  computer_name_prefix = "kafka"
   overprovision       = false
-  source_image_reference {
-  publisher = "Canonical"
-  offer     = "0001-com-ubuntu-server-jammy"
-  sku       = "22_04-lts"
-  version   = "latest"
-}
+  single_placement_group = true
 
-  os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
+  source_image_reference {
+    publisher = "erockyenterprisesoftwarefoundationinc1653070526893"
+    offer     = "rockylinux"
+    sku       = "9_3"
+    version   = "latest"
   }
 
+  admin_username = var.kafka_admin_username
+
   admin_ssh_key {
-    username = "azureuser"
+    username   = var.kafka_admin_username
     public_key = file("~/.ssh/id_rsa.pub")
   }
 
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  data_disk {
+    lun                  = 0
+    caching              = "None"
+    create_option        = "Empty"
+    disk_size_gb         = var.kafka_data_disk_size_gb
+    storage_account_type = "PremiumV2_LRS"
+  }
+
   network_interface {
-    name                      = "nic-kafka"
+    name                      = "kafka-nic"
     primary                   = true
     network_security_group_id = azurerm_network_security_group.example.id
 
     ip_configuration {
-      name                                   = "TestIPConfiguration"
-      primary                                = true
-      subnet_id                              = azurerm_subnet.kafka.id
-      public_ip_address {
-        name                    = "kafka-public-ip"
-        idle_timeout_in_minutes = 4
-        domain_name_label       = "kafkazookeeperdnsprefix"
-      }
+      name      = "kafka-ip-config"
+      primary   = true
+      subnet_id = azurerm_subnet.kafka.id
     }
+  }
+
+  boot_diagnostics {
+    storage_account_uri = null
   }
 }
 
 
-data "azurerm_virtual_machine_scale_set" "example" {
-  name                = azurerm_linux_virtual_machine_scale_set.example.name
+data "azurerm_virtual_machine_scale_set" "brokers" {
+  name                = azurerm_linux_virtual_machine_scale_set.brokers.name
   resource_group_name = azurerm_resource_group.example.name
 }
 
 
-output "virtual_machine_ips" {
-  value = data.azurerm_virtual_machine_scale_set.example.instances.*.private_ip_address
-}
-
-output "public_ips" {
-  value = data.azurerm_virtual_machine_scale_set.example.instances.*.public_ip_address
+output "kafka_private_ips" {
+  description = "Private IP addresses assigned to Kafka brokers."
+  value       = data.azurerm_virtual_machine_scale_set.brokers.instances.*.private_ip_address
 }
 
 
-resource "null_resource" "launch_ansible_playbook"{
+resource "null_resource" "launch_ansible_playbook" {
   triggers = {
-    trigger = join(",", data.azurerm_virtual_machine_scale_set.example.instances.*.public_ip_address) 
-    trigger2 = join(",", data.azurerm_virtual_machine_scale_set.example.instances.*.private_ip_address) 
+    private_ips = join(",", data.azurerm_virtual_machine_scale_set.brokers.instances.*.private_ip_address)
   }
+
   provisioner "local-exec" {
     working_dir = "../install_kafka_with_ansible_roles"
-    command = "./inventory_script_hosts.sh > myhosts; ansible-playbook deploy_kafka_playbook.yaml"
-}
+    command      = "mkdir -p generated && ./inventory_script_hosts.sh ${azurerm_resource_group.example.name} ${azurerm_linux_virtual_machine_scale_set.brokers.name} ${var.kafka_admin_username} > generated/kafka_hosts && ansible-playbook -i generated/kafka_hosts deploy_kafka_playbook.yaml"
+  }
 }
