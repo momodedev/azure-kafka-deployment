@@ -1,17 +1,13 @@
-
 plugin: azure_rm
 auth_source: msi
 include_vmss_resource_groups:
-    - '*'
+  - mall-kafka
 conditional_groups:
-    kafka: "'kafka' in name"
-    zookeeper: "'zookeeper' in name"
-
+  kafka: "'kafka' in name"
 hostnames:
-    - private_ipv4_addresses[0]
-
-hostvar_expressions:
-    private_ip: private_ipv4_addresses[0]
-
+  - private_ipv4_addresses[0]
 exclude_host_filters:
-    - computer_name == 'control'
+  - computer_name == 'control'
+resource_groups:
+  - mall-kafka
+  # Limit discovery to the Kafka resource group to avoid hitting unrelated hosts.

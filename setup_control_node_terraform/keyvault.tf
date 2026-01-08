@@ -15,7 +15,11 @@ resource "azurerm_key_vault" "example" {
   network_acls {
     bypass = "AzureServices"
     default_action = "Deny"
-    ip_rules = ["${chomp(data.http.myip.response_body)}"]
+    # Allow both the current detected IP and a fixed corporate egress IP to avoid firewall rejections when the public IP flips.
+    ip_rules = [
+      "${chomp(data.http.myip.response_body)}",
+      "167.220.255.70",
+    ]
     virtual_network_subnet_ids = [azurerm_subnet.control.id]
   }
 }
