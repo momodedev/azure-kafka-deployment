@@ -1,13 +1,11 @@
-plugin: azure_rm
+plugin: azure.azcollection.azure_rm
 auth_source: msi
-include_vmss_resource_groups:
-  - mall-kafka
-conditional_groups:
-  kafka: "'kafka' in name"
-hostnames:
-  - private_ipv4_addresses[0]
-exclude_host_filters:
-  - computer_name == 'control'
+
 resource_groups:
   - mall-kafka
-  # Limit discovery to the Kafka resource group to avoid hitting unrelated hosts.
+
+include_vmss_resource_groups:
+  - mall-kafka
+
+hostnames:
+  - private_ipv4_addresses[0]
