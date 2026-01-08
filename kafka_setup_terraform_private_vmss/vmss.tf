@@ -13,17 +13,23 @@ resource "azurerm_linux_virtual_machine_scale_set" "brokers" {
   single_placement_group = true
 
   source_image_reference {
-    publisher = "erockyenterprisesoftwarefoundationinc1653070526893"
-    offer     = "rockylinux"
-    sku       = "9_3"
+    publisher = "resf"
+    offer     = "rockylinux-x86_64"
+    sku       = "9-lvm"
     version   = "latest"
+  }
+
+  plan {
+    publisher = "resf"
+    product   = "rockylinux-x86_64"
+    name      = "9-lvm"
   }
 
   admin_username = var.kafka_admin_username
 
   admin_ssh_key {
     username   = var.kafka_admin_username
-    public_key = file("~/.ssh/id_rsa.pub")
+    public_key = file(pathexpand("~/.ssh/id_rsa.pub"))
   }
 
   os_disk {
@@ -36,7 +42,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "brokers" {
     caching              = "None"
     create_option        = "Empty"
     disk_size_gb         = var.kafka_data_disk_size_gb
-    storage_account_type = "PremiumV2_LRS"
+    storage_account_type = "Premium_LRS"
   }
 
   network_interface {

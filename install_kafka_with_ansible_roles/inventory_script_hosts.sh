@@ -13,14 +13,15 @@ admin_user="$3"
 
 vmss_nics=$(az vmss nic list -g "$resource_group" --vmss-name "$vmss_name")
 
-mapfile -t private_ips < <(echo "$vmss_nics" | jq -r 'sort_by(.virtualMachine.id) | map(.ipConfigurations[0].privateIPAddress) | .[]')
+private_ips=$(echo "$vmss_nics" | jq -r 'sort_by(.virtualMachine.id) | map(.ipConfigurations[0].privateIPAddress) | .[]')
 
 echo "[kafka]"
 index=1
-for ip in "${private_ips[@]}"; do
+while IFS= read -r ip; do
+    [ -z "$ip" ] && continue
     printf 'kafka-broker-%02d ansible_host=%s private_ip=%s kafka_node_id=%d\n' "$index" "$ip" "$ip" "$index"
     index=$((index + 1))
-done
+done <<< "$private_ips"
 
 echo "[all:vars]"
 echo "ansible_user=$admin_user"

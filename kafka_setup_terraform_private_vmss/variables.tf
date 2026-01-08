@@ -1,6 +1,6 @@
 variable "resource_group_location" {
   type        = string
-  default     = "eastus"
+  default     = "westus3"
   description = "Azure region that supports Premium SSD v2 for the Kafka deployment."
 }
 
@@ -35,8 +35,8 @@ variable "kafka_instance_count" {
 
 variable "kafka_vm_size" {
   type        = string
-  default     = "Standard_D4ps_v6"
-  description = "Azure compute SKU for Kafka brokers (requires Premium SSD v2 support)."
+  default     = "Standard_D4s_v5"
+  description = "Azure compute SKU for Kafka brokers (x64, Premium SSD v2 capable in most regions)."
 }
 
 variable "kafka_data_disk_size_gb" {
